@@ -136,26 +136,51 @@ public final class Cloudipsp {
     public void googlePayInitialize(final String token,
                                     final Activity activity,
                                     final int requestCode,
-                                    final GooglePayCallback googlePayCallback) {
-        googlePayInitialize(activity, requestCode, googlePayCallback, new GooglePayMetaInfoProvider() {
-            @Override
-            public GooglePayMetaInfo getGooglePayMetaInfo() throws java.lang.Exception {
-                final Receipt receipt = order(token);
-                return new GooglePayMetaInfo(token, null, receipt.amount, receipt.currency, receipt.responseUrl);
-            }
-        });
+                                    final GooglePayCallback googlePayCallback,
+                                    final GooglePayMerchantConfig googlePayConfig,
+                                    final Receipt receipt
+    ) {
+        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(token,null,receipt.amount,receipt.currency,receipt.responseUrl);
+        googlePayInitialize(activity, requestCode, googlePayCallback,googlePayConfig,metaInfo);
     }
 
     public void googlePayInitialize(final Order order,
                                     final Activity activity,
                                     final int requestCode,
-                                    final GooglePayCallback googlePayCallback) {
-        googlePayInitialize(activity, requestCode, googlePayCallback, new GooglePayMetaInfoProvider() {
-            @Override
-            public GooglePayMetaInfo getGooglePayMetaInfo() throws java.lang.Exception {
-                return new GooglePayMetaInfo(null, order, order.amount, order.currency, URL_CALLBACK);
-            }
-        });
+                                    final GooglePayCallback googlePayCallback,
+                                    final GooglePayMerchantConfig googlePayConfig
+    ) {
+        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(null,order,order.amount,order.currency,URL_CALLBACK);
+        googlePayInitialize(activity, requestCode, googlePayCallback,googlePayConfig,metaInfo);
+    }
+
+    public class GooglePayMerchantConfigResult {
+        private GooglePayMerchantConfig merchantConfig;
+        private Receipt receipt;
+
+        public GooglePayMerchantConfigResult(GooglePayMerchantConfig merchantConfig, Receipt receipt) {
+            this.merchantConfig = merchantConfig;
+            this.receipt = receipt;
+        }
+        public GooglePayMerchantConfig getMerchantConfig() {
+            return merchantConfig;
+        }
+
+        public Receipt getReceipt() {
+            return receipt;
+        }
+    }
+
+    public GooglePayMerchantConfigResult googlePayInitializeMerchantConfig(final String token) throws java.lang.Exception {
+        final Receipt receipt = order(token);
+        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(token,null,receipt.amount,receipt.currency,receipt.responseUrl);
+        final GooglePayMerchantConfig config = googlePayMerchantConfig(metaInfo);
+        return new GooglePayMerchantConfigResult(config,receipt);
+    }
+
+    public GooglePayMerchantConfig googlePayInitializeMerchantConfig(final Order order) throws java.lang.Exception {
+        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(null, order, order.amount, order.currency, URL_CALLBACK);
+        return googlePayMerchantConfig(metaInfo);
     }
 
     private static class GooglePayMetaInfo {
@@ -181,7 +206,9 @@ public final class Cloudipsp {
     private void googlePayInitialize(final Activity activity,
                                      final int requestCode,
                                      final GooglePayCallback googlePayCallback,
-                                     final GooglePayMetaInfoProvider metaInfoProvider) {
+                                     final GooglePayMerchantConfig googlePayConfig,
+                                     final GooglePayMetaInfo metaInfo
+    ) {
 
         if (!isGooglePayRuntimeProvided()) {
             return;
@@ -210,8 +237,6 @@ public final class Cloudipsp {
         }) {
             @Override
             public void runInTry() throws java.lang.Exception {
-                final GooglePayMetaInfo metaInfo = metaInfoProvider.getGooglePayMetaInfo();
-                final GooglePayMerchantConfig googlePayConfig = googlePayMerchantConfig(metaInfo);
                 final PaymentDataRequest request = PaymentDataRequest.fromJson(googlePayConfig.data.toString());
 
                 final PaymentsClient paymentsClient = Wallet.getPaymentsClient(activity,
@@ -237,7 +262,7 @@ public final class Cloudipsp {
         }.start();
     }
 
-    private static class GooglePayMerchantConfig {
+    public static class GooglePayMerchantConfig {
         public final String paymentSystem;
         public final JSONObject data;
 
