@@ -31,7 +31,7 @@ Add the following to your app's `build.gradle` file:
 
 ```gradle
 dependencies {
-    implementation 'com.cloudipsp:android-sdk:x.x.x' // Replace with the latest version
+    implementation 'com.flittpayments:android-sdk:1.0.0' // Replace with the latest version
 }
 ```
 
@@ -60,7 +60,7 @@ Create a layout file (e.g., `activity_gpay.xml`) that includes a WebView for the
            android:layout_height="wrap_content"
            android:layout_margin="16dp" />
 
-   <com.cloudipsp.android.CloudipspWebView
+   <com.flittpayments.android.CloudipspWebView
            android:id="@+id/webView"
            android:layout_width="match_parent"
            android:layout_height="match_parent" />
@@ -285,7 +285,6 @@ Below is a comprehensive table of all the parameters available for the Google Pa
 When creating an Order object, you can set the following parameters:
 
 | Parameter | Type | Required | Description |
-
 |-----------|------|----------|-------------|
 | Amount | `int` | Yes | Payment amount in the smallest currency unit (e.g., cents) |
 | Currency | `String` | Yes | Three-letter currency code (e.g., "USD", "EUR", "GEL") |
