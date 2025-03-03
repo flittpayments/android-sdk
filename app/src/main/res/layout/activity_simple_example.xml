@@ -63,7 +63,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="7dp" />
 
-            <com.cloudipsp.android.CardInputView
+            <com.flitt.android.CardInputView
                 android:id="@+id/card_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>
@@ -99,7 +99,7 @@
         </LinearLayout>
     </ScrollView>
 
-    <com.cloudipsp.android.CloudipspWebView
+    <com.flitt.android.CloudipspWebView
         android:id="@+id/web_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
