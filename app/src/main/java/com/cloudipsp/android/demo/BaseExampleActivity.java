@@ -57,7 +57,7 @@ abstract public class BaseExampleActivity extends Activity implements
         findViewById(R.id.btn_pay_google).setOnClickListener(this);
 
         webView = findViewById(R.id.web_view);
-        cloudipsp = new Cloudipsp(1396424, webView);
+        cloudipsp = new Cloudipsp(1396424, 1549901);
 
         spinnerCcy.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, Currency.values()));
 
