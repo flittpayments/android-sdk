@@ -55,10 +55,9 @@ abstract public class BaseExampleActivity extends Activity implements
         editEmail = findViewById(R.id.edit_email);
         editDescription = findViewById(R.id.edit_description);
         findViewById(R.id.btn_pay_card).setOnClickListener(this);
-        findViewById(R.id.btn_pay_google).setOnClickListener(this);
 
         webView = findViewById(R.id.web_view);
-        cloudipsp = new Cloudipsp(1396424, 1549901);
+        cloudipsp = new Cloudipsp(1396424, webView);
 
         spinnerCcy.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, Currency.values()));
 
@@ -104,9 +103,6 @@ abstract public class BaseExampleActivity extends Activity implements
             case R.id.btn_pay_card:
                 processPayCard();
                 break;
-            case R.id.btn_pay_google:
-                processGooglePay();
-                break;
         }
     }
 
@@ -130,7 +126,7 @@ abstract public class BaseExampleActivity extends Activity implements
         if (Cloudipsp.supportsGooglePay(this)) {
             final Order googlePayOrder = createOrder();
             if (googlePayOrder != null) {
-                cloudipsp.googlePayInitialize(googlePayOrder, this, RC_GOOGLE_PAY, this);
+//                cloudipsp.googlePayInitialize(googlePayOrder, this, RC_GOOGLE_PAY, this);
             }
         } else {
             Toast.makeText(this, R.string.e_google_pay_unsupported, Toast.LENGTH_LONG).show();

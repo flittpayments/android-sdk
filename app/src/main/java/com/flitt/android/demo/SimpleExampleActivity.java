@@ -5,7 +5,6 @@ import android.widget.EditText;
 
 import com.flitt.android.Card;
 import com.flitt.android.CardInputView;
-import com.flitt.android.demo.R;
 
 public class SimpleExampleActivity extends BaseExampleActivity {
     private CardInputView cardInput;

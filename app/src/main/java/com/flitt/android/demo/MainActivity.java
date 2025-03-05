@@ -25,4 +25,7 @@ public class MainActivity extends Activity {
     public void onFlexibleExampleClicked(View view) {
         startActivity(new Intent(this, FlexibleExampleActivity.class));
     }
+    public void onGPayActivityExampleClicked(View view) {
+        startActivity(new Intent(this, GPayActivityExample.class));
+    }
 }

@@ -20,5 +20,10 @@
             android:layout_height="wrap_content"
             android:onClick="onFlexibleExampleClicked"
             android:text="@string/btn_flexible_example" />
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:onClick="onGPayActivityExampleClicked"
+            android:text="@string/google_pay_example" />
     </LinearLayout>
 </RelativeLayout>
