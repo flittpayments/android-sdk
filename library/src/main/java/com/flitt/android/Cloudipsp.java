@@ -139,10 +139,23 @@ public final class Cloudipsp {
                                     final GooglePayCallback googlePayCallback,
                                     final GooglePayMerchantConfig googlePayConfig,
                                     final Receipt receipt
-    ) {
+    )  {
         final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(token,null,receipt.amount,receipt.currency,receipt.responseUrl);
         googlePayInitialize(activity, requestCode, googlePayCallback,googlePayConfig,metaInfo);
     }
+    public void googlePayInitialize(final String token,
+                                    final Activity activity,
+                                    final int requestCode,
+                                    final GooglePayCallback googlePayCallback) {
+        googlePayInitialize(activity, requestCode, googlePayCallback, new GooglePayMetaInfoProvider() {
+            @Override
+            public GooglePayMetaInfo getGooglePayMetaInfo() throws java.lang.Exception {
+                final Receipt receipt = order(token);
+                return new GooglePayMetaInfo(token, null, receipt.amount, receipt.currency, receipt.responseUrl);
+            }
+        });
+    }
+
 
     public void googlePayInitialize(final Order order,
                                     final Activity activity,
@@ -152,6 +165,18 @@ public final class Cloudipsp {
     ) {
         final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(null,order,order.amount,order.currency,URL_CALLBACK);
         googlePayInitialize(activity, requestCode, googlePayCallback,googlePayConfig,metaInfo);
+    }
+
+    public void googlePayInitialize(final Order order,
+                                    final Activity activity,
+                                    final int requestCode,
+                                    final GooglePayCallback googlePayCallback) {
+        googlePayInitialize(activity, requestCode, googlePayCallback, new GooglePayMetaInfoProvider() {
+            @Override
+            public GooglePayMetaInfo getGooglePayMetaInfo() throws java.lang.Exception {
+                return new GooglePayMetaInfo(null, order, order.amount, order.currency, URL_CALLBACK);
+            }
+        });
     }
 
     public class GooglePayMerchantConfigResult {
@@ -207,12 +232,40 @@ public final class Cloudipsp {
                                      final int requestCode,
                                      final GooglePayCallback googlePayCallback,
                                      final GooglePayMerchantConfig googlePayConfig,
-                                     final GooglePayMetaInfo metaInfo
-    ) {
+                                     final GooglePayMetaInfo metaInfo) {
 
         if (!isGooglePayRuntimeProvided()) {
             return;
         }
+
+        executeGooglePayProcess(activity, requestCode, googlePayCallback, googlePayConfig, metaInfo);
+    }
+
+    private void googlePayInitialize(final Activity activity,
+                                     final int requestCode,
+                                     final GooglePayCallback googlePayCallback,
+                                     final GooglePayMetaInfoProvider metaInfoProvider) {
+
+        if (!isGooglePayRuntimeProvided()) {
+            return;
+        }
+
+        new Task<GooglePayCallback>(googlePayCallback) {
+            @Override
+            public void runInTry() throws java.lang.Exception {
+                final GooglePayMetaInfo metaInfo = metaInfoProvider.getGooglePayMetaInfo();
+                final GooglePayMerchantConfig googlePayConfig = googlePayMerchantConfig(metaInfo);
+
+                executeGooglePayProcess(activity, requestCode, callback, googlePayConfig, metaInfo);
+            }
+        }.start();
+    }
+
+    private void executeGooglePayProcess(final Activity activity,
+                                         final int requestCode,
+                                         final GooglePayCallback googlePayCallback,
+                                         final GooglePayMerchantConfig googlePayConfig,
+                                         final GooglePayMetaInfo metaInfo) {
 
         new Task<GooglePayCallback>(new GooglePayCallback() {
             @Override
