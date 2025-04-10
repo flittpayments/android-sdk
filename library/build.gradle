@@ -1,37 +1,123 @@
-apply plugin: 'com.android.library'
-apply from: '../maven_push.gradle'
+plugins {
+    id 'com.android.library'
+    id 'com.vanniktech.maven.publish' version '0.29.0'
+}
+
+System.setProperty("org.gradle.unsafe.validation.tasks", "false")
+
+// Read properties from gradle.properties
+def versionNameFromProps = project.hasProperty('VERSION_NAME') ?
+        project.property('VERSION_NAME') : "1.0.0"
+def versionCodeFromProps = project.hasProperty('VERSION_CODE') ?
+        project.property('VERSION_CODE').toInteger() : 1
+def groupFromProps = project.hasProperty('GROUP') ?
+        project.property('GROUP') : "com.flitt"
+def packageNameFromProps = project.hasProperty('PACKAGE_NAME') ?
+        project.property('PACKAGE_NAME') : "flitt-android"
+
+// POM properties
+def pomDescription = project.hasProperty('POM_DESCRIPTION') ?
+        project.property('POM_DESCRIPTION') : "Library for accepting payments"
+def pomUrl = project.hasProperty('POM_URL') ?
+        project.property('POM_URL') : "https://github.com/flittpayments/android-sdk"
+def pomLicenseName = project.hasProperty('POM_LICENCE_NAME') ?
+        project.property('POM_LICENCE_NAME') : "The Apache License, Version 2.0"
+def pomLicenseUrl = project.hasProperty('POM_LICENCE_URL') ?
+        project.property('POM_LICENCE_URL') : "http://www.apache.org/licenses/LICENSE-2.0.txt"
+def pomScmDevConnection = project.hasProperty('POM_SCM_DEV_CONNECTION') ?
+        project.property('POM_SCM_DEV_CONNECTION') : "scm:git:ssh://github.com/flittpayments/android-sdk.git"
+def pomScmConnection = project.hasProperty('POM_SCM_CONNECTION') ?
+        project.property('POM_SCM_CONNECTION') : "scm:git@github.com:flittpayments/android-sdk.git"
+def pomScmUrl = project.hasProperty('POM_SCM_URL') ?
+        project.property('POM_SCM_URL') : "https://github.com/flittpayments/android-sdk/tree/main"
+def pomDeveloperId = project.hasProperty('POM_DEVELOPER_ID') ?
+        project.property('POM_DEVELOPER_ID') : "Rapidys"
+def pomDeveloperName = project.hasProperty('POM_DEVELOPER_NAME') ?
+        project.property('POM_DEVELOPER_NAME') : "Lado"
+def pomDeveloperEmail = project.hasProperty('POM_DEVELOPER_EMAIL') ?
+        project.property('POM_DEVELOPER_EMAIL') : "ladodolidze2000@gmail.com"
 
 def safeExtGet(prop, fallback) {
     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
 
+group = groupFromProps
+version = versionNameFromProps
+
 android {
+    namespace "com.flitt.android"
     compileSdkVersion safeExtGet('compileSdkVersion', 33)
     buildToolsVersion safeExtGet('buildToolsVersion', '33.0.0')
 
-    def apiHost
-    if (project.hasProperty('host')) {
-        apiHost = project.property('host')
-    } else {
-        apiHost = 'https://pay.flitt.com'
-    }
+    def apiHost = project.hasProperty('HOST') ?
+            project.property('HOST') : 'https://pay.flitt.com'
+
     defaultConfig {
         minSdkVersion safeExtGet('minSdkVersion', 10)
         targetSdkVersion safeExtGet('targetSdkVersion', 33)
-        versionCode 1
-        versionName "1.0"
+        versionCode versionCodeFromProps
+        versionName versionNameFromProps
 
         buildConfigField 'String', 'API_HOST', "\"$apiHost\""
+        buildConfigField 'String', 'VERSION_NAME', "\"${versionNameFromProps}\""
     }
+
+    buildFeatures {
+        buildConfig true
+    }
+
     println("API_HOST: $apiHost")
+
     buildTypes {
-        release {
-            minifyEnabled false
-        }
+        release { }
+        debug { }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_13
+        targetCompatibility JavaVersion.VERSION_13
     }
 }
 
 dependencies {
     compileOnly 'com.google.android.gms:play-services-base:18.1.0'
     compileOnly 'com.google.android.gms:play-services-wallet:19.4.0'
+}
+
+mavenPublishing {
+    publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL, false)
+    signAllPublications()
+
+    coordinates(
+            groupFromProps,
+            packageNameFromProps,
+            versionNameFromProps
+    )
+
+    pom {
+        name = packageNameFromProps
+        description = pomDescription
+        url = pomUrl
+
+        licenses {
+            license {
+                name = pomLicenseName
+                url = pomLicenseUrl
+            }
+        }
+
+        developers {
+            developer {
+                id = pomDeveloperId
+                name = pomDeveloperName
+                email = pomDeveloperEmail
+            }
+        }
+
+        scm {
+            connection = pomScmConnection
+            developerConnection = pomScmDevConnection
+            url = pomScmUrl
+        }
+    }
 }

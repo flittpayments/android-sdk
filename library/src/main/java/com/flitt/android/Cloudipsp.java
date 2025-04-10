@@ -3,6 +3,7 @@ package com.flitt.android;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -34,8 +35,14 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.security.cert.CertPathValidatorException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.TreeMap;
 
@@ -63,8 +70,11 @@ public final class Cloudipsp {
     private static final Handler sMain = new Handler(Looper.getMainLooper());
 
     public final int merchantId;
-    private final CloudipspView cloudipspView;
+    private CloudipspView cloudipspView;
 
+    public Cloudipsp(int merchantId) {
+        this.merchantId = merchantId;
+    }
     public Cloudipsp(int merchantId, CloudipspView cloudipspView) {
         this.merchantId = merchantId;
         this.cloudipspView = cloudipspView;
@@ -76,6 +86,10 @@ public final class Cloudipsp {
 
     public interface PayCallback extends Callback {
         void onPaidProcessed(Receipt receipt);
+    }
+
+    public interface BankPayCallback extends Callback {
+        void onRedirected(BankRedirectDetails bankRedirectDetails);
     }
 
     public interface GooglePayCallback extends Callback {
@@ -139,10 +153,11 @@ public final class Cloudipsp {
                                     final GooglePayCallback googlePayCallback,
                                     final GooglePayMerchantConfig googlePayConfig,
                                     final Receipt receipt
-    )  {
-        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(token,null,receipt.amount,receipt.currency,receipt.responseUrl);
-        googlePayInitialize(activity, requestCode, googlePayCallback,googlePayConfig,metaInfo);
+    ) {
+        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(token, null, receipt.amount, receipt.currency, receipt.responseUrl);
+        googlePayInitialize(activity, requestCode, googlePayCallback, googlePayConfig, metaInfo);
     }
+
     public void googlePayInitialize(final String token,
                                     final Activity activity,
                                     final int requestCode,
@@ -157,14 +172,152 @@ public final class Cloudipsp {
     }
 
 
+    public List<Bank> getAvailableBankList(final String token, BankPayCallback bankPayCallback) throws java.lang.Exception {
+        try {
+            final TreeMap<String, Object> mobilePayRequest = new TreeMap<>();
+            mobilePayRequest.put("token", token);
+            final JSONObject mobilePayResponse = callJson("/api/checkout/ajax/info", mobilePayRequest);
+            List<Bank> banks = new ArrayList<>();
+            if (mobilePayResponse.has("tabs")) {
+                JSONObject tabs = mobilePayResponse.getJSONObject("tabs");
+                if (tabs.has("trustly")) {
+                    JSONObject trustly = tabs.getJSONObject("trustly");
+                    if (trustly.has("payment_systems")) {
+                        JSONObject paymentSystems = trustly.getJSONObject("payment_systems");
+                        Iterator<String> keys = paymentSystems.keys();
+                        while (keys.hasNext()) {
+                            String key = keys.next();
+                            if (paymentSystems.get(key) instanceof JSONObject) {
+                                JSONObject bankData = paymentSystems.getJSONObject(key);
+                                Bank bank = new Bank(
+                                        key,
+                                        bankData.getInt("country_priority"),
+                                        bankData.getInt("user_priority"),
+                                        bankData.getBoolean("quick_method"),
+                                        bankData.getBoolean("user_popular"),
+                                        bankData.getString("name"),
+                                        bankData.getString("country"),
+                                        bankData.getString("bank_logo"),
+                                        bankData.getString("alias")
+                                );
+                                banks.add(bank);
+                            }
+                        }
+                    }
+                }
+            }
+            Collections.sort(banks, new Comparator<Bank>() {
+                @Override
+                public int compare(Bank bank1, Bank bank2) {
+                    if (bank1.getUserPriority() != bank2.getUserPriority()) {
+                        return Integer.compare(bank2.getUserPriority(), bank1.getUserPriority());
+                    }
+                    return Integer.compare(bank2.getCountryPriority(), bank1.getCountryPriority());
+                }
+            });
+            return banks;
+        } catch (Exception e) {
+            if (bankPayCallback != null) {
+                bankPayCallback.onPaidFailure(e);
+            }
+            throw new Exception(e);
+        }
+    }
+
+    public List<Bank> getAvailableBankList(final Order order, BankPayCallback bankPayCallback) throws java.lang.Exception {
+        try {
+            final String token = getToken(order, null);
+            return this.getAvailableBankList(token, bankPayCallback);
+        } catch (Exception e) {
+            if (bankPayCallback != null) {
+                bankPayCallback.onPaidFailure(e);
+            }
+            throw new Exception(e);
+        }
+    }
+
+    public void initiateBankPayment(Context context, String token, Bank bank, BankPayCallback bankPayCallback,boolean autoRedirect) {
+        try {
+            DeviceInfoProvider deviceInfo = new DeviceInfoProvider(context);
+            String encodedDeviceData = deviceInfo.getEncodedDeviceFingerprint();
+            // Create payment request data
+            final TreeMap<String, Object> requestObj = new TreeMap<>();
+            final JSONObject receipt = ajaxInfo(token);
+            final JSONObject orderData = receipt.getJSONObject("order_data");
+            requestObj.put("merchant_id", orderData.get("merchant_id"));
+            requestObj.put("amount", orderData.get("amount"));
+            requestObj.put("currency", orderData.get("currency"));
+            requestObj.put("token", token);
+            requestObj.put("payment_system", bank.getBankId());
+            requestObj.put("kkh", encodedDeviceData);
+            Log.d("deviceInfo", "deviceInfo: " + encodedDeviceData);
+            final JSONObject response = callJson("/api/checkout/ajax", requestObj);
+            Log.d("response", "response: " + response);
+            String responseStatus = response.optString("response_status", "");
+            String action = response.optString("action", "");
+            if ("success".equals(responseStatus) && "redirect".equals(action) && response.has("url")) {
+                String redirectUrl = response.getString("url");
+                String target = response.optString("target", "_top");
+                handleRedirect(context, redirectUrl, target, bankPayCallback,response,autoRedirect);
+            } else {
+                if (bankPayCallback != null) {
+                    bankPayCallback.onPaidFailure(new Exception("Payment initiation failed: " +
+                           "payment status: " + responseStatus + ", action: " + action));
+                }
+            }
+        } catch (java.lang.Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void initiateBankPayment(Context context, final Order order, Bank bank, BankPayCallback bankPayCallback,boolean autoRedirect) throws java.lang.Exception {
+        try {
+            final String token = getToken(order, null);
+            this.initiateBankPayment(context, token,bank,bankPayCallback,autoRedirect);
+        } catch (Exception e) {
+            if (bankPayCallback != null) {
+                bankPayCallback.onPaidFailure(e);
+            }
+            throw new Exception(e);
+        }
+    }
+
+
+    private void handleRedirect(Context context, String url, String target, BankPayCallback payCallback,JSONObject response,boolean autoRedirect) throws JSONException {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        if ("_blank".equals(target)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        } else if ("_top".equals(target) || "_self".equals(target)) {
+            // Use default behavior — no additional flags needed
+        }
+        BankRedirectDetails bankRedirectDetails = new BankRedirectDetails(
+                response.getString("action"),
+                response.getString("url"),
+                response.getString("target"),
+                response.getString("response_status")
+        );
+        if(!autoRedirect){
+            payCallback.onRedirected(bankRedirectDetails);
+            return;
+        }
+        if (intent.resolveActivity(context.getPackageManager()) != null) {
+            context.startActivity(intent);
+            payCallback.onRedirected(bankRedirectDetails);
+        } else {
+            if (payCallback != null) {
+                payCallback.onPaidFailure(new Exception("No application available to handle payment URL"));
+            }
+        }
+    }
+
     public void googlePayInitialize(final Order order,
                                     final Activity activity,
                                     final int requestCode,
                                     final GooglePayCallback googlePayCallback,
                                     final GooglePayMerchantConfig googlePayConfig
     ) {
-        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(null,order,order.amount,order.currency,URL_CALLBACK);
-        googlePayInitialize(activity, requestCode, googlePayCallback,googlePayConfig,metaInfo);
+        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(null, order, order.amount, order.currency, URL_CALLBACK);
+        googlePayInitialize(activity, requestCode, googlePayCallback, googlePayConfig, metaInfo);
     }
 
     public void googlePayInitialize(final Order order,
@@ -187,6 +340,7 @@ public final class Cloudipsp {
             this.merchantConfig = merchantConfig;
             this.receipt = receipt;
         }
+
         public GooglePayMerchantConfig getMerchantConfig() {
             return merchantConfig;
         }
@@ -198,9 +352,9 @@ public final class Cloudipsp {
 
     public GooglePayMerchantConfigResult googlePayInitializeMerchantConfig(final String token) throws java.lang.Exception {
         final Receipt receipt = order(token);
-        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(token,null,receipt.amount,receipt.currency,receipt.responseUrl);
+        final GooglePayMetaInfo metaInfo = new GooglePayMetaInfo(token, null, receipt.amount, receipt.currency, receipt.responseUrl);
         final GooglePayMerchantConfig config = googlePayMerchantConfig(metaInfo);
-        return new GooglePayMerchantConfigResult(config,receipt);
+        return new GooglePayMerchantConfigResult(config, receipt);
     }
 
     public GooglePayMerchantConfig googlePayInitializeMerchantConfig(final Order order) throws java.lang.Exception {
