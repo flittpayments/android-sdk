@@ -14,9 +14,9 @@ public class SimpleExampleActivity extends BaseExampleActivity {
         super.onCreate(savedInstanceState);
 
         cardInput = findViewById(R.id.card_input);
-        if (BuildConfig.DEBUG) {
-            cardInput.setHelpedNeeded(true);
-        }
+//        if (BuildConfig.DEBUG) {
+//            cardInput.setHelpedNeeded(true);
+//        }
     }
 
     @Override

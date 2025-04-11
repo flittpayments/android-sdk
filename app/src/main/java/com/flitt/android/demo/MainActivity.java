@@ -28,4 +28,7 @@ public class MainActivity extends Activity {
     public void onGPayActivityExampleClicked(View view) {
         startActivity(new Intent(this, GPayActivityExample.class));
     }
+    public void onPayBankExampleClick(View view) {
+        startActivity(new Intent(this, BankPaymentActivity.class));
+    }
 }
