@@ -11,6 +11,7 @@
 8. [Error Handling](#error-handling)
 9. [Additional Configuration Options](#additional-configuration-options)
 10. [Sample Project Structure](#sample-project-structure)
+11. [Bank Payment Methods](#bank-payment-methods)
 
 ## Introduction
 
@@ -240,25 +241,25 @@ Implement the failure callback to handle payment errors:
 ```java
 @Override
 public void onPaidFailure(Cloudipsp.Exception e) {
-    if (e instanceof Cloudipsp.Exception.Failure) {
-        Cloudipsp.Exception.Failure f = (Cloudipsp.Exception.Failure) e;
-        Toast.makeText(this, "Failure\nErrorCode: " + f.errorCode + 
-                "\nMessage: " + f.getMessage() + "\nRequestId: " + f.requestId, 
-                Toast.LENGTH_LONG).show();
-    } else if (e instanceof Cloudipsp.Exception.NetworkSecurity) {
-        Toast.makeText(this, "Network security error: " + e.getMessage(), 
-                Toast.LENGTH_LONG).show();
-    } else if (e instanceof Cloudipsp.Exception.ServerInternalError) {
-        Toast.makeText(this, "Internal server error: " + e.getMessage(), 
-                Toast.LENGTH_LONG).show();
-    } else if (e instanceof Cloudipsp.Exception.NetworkAccess) {
-        Toast.makeText(this, "Network error", Toast.LENGTH_LONG).show();
-    } else {
-        Toast.makeText(this, "Payment Failed", Toast.LENGTH_LONG).show();
-    }
-    e.printStackTrace();
-    
-    // Handle payment failure (update UI, allow retry, etc.)
+   if (e instanceof Cloudipsp.Exception.Failure) {
+      Cloudipsp.Exception.Failure f = (Cloudipsp.Exception.Failure) e;
+      Toast.makeText(this, "Failure\nErrorCode: " + f.errorCode +
+                      "\nMessage: " + f.getMessage() + "\nRequestId: " + f.requestId,
+              Toast.LENGTH_LONG).show();
+   } else if (e instanceof Cloudipsp.Exception.NetworkSecurity) {
+      Toast.makeText(this, "Network security error: " + e.getMessage(),
+              Toast.LENGTH_LONG).show();
+   } else if (e instanceof Cloudipsp.Exception.ServerInternalError) {
+      Toast.makeText(this, "Internal server error: " + e.getMessage(),
+              Toast.LENGTH_LONG).show();
+   } else if (e instanceof Cloudipsp.Exception.NetworkAccess) {
+      Toast.makeText(this, "Network error", Toast.LENGTH_LONG).show();
+   } else {
+      Toast.makeText(this, "Payment Failed", Toast.LENGTH_LONG).show();
+   }
+   e.printStackTrace();
+
+   // Handle payment failure (update UI, allow retry, etc.)
 }
 ```
 
@@ -333,6 +334,168 @@ com.example.myapplication/
 │       └── colors.xml          // Color definitions
 └── AndroidManifest.xml         // App manifest with required permissions
 ```
+
+## Bank Payment Methods
+
+### Interface Implementation
+
+```java
+public class MainActivity extends AppCompatActivity implements Cloudipsp.BankPayCallback {
+   // Activity implementation
+}
+```
+
+### Initialization
+
+```java
+// Initialize Cloudipsp with Merchant ID
+Cloudipsp cloudipsp = new Cloudipsp(MERCHANT_ID);
+```
+
+### Interface Methods
+
+The `Cloudipsp.BankPayCallback` interface requires implementing two key methods:
+
+```java
+@Override
+public void onRedirected(@NonNull BankRedirectDetails bankRedirectDetails) {
+   runOnUiThread(() -> {
+      // Handle successful payment redirection
+      showToast("Payment processed successfully!");
+
+      // Additional details about the payment
+      String redirectUrl = bankRedirectDetails.getUrl();
+      Log.d(TAG, "Redirect URL: " + redirectUrl);
+   });
+}
+
+@Override
+public void onPaidFailure(@NonNull Cloudipsp.Exception e) {
+   runOnUiThread(() -> {
+      // Handle payment failure
+      showToast("Payment failed: " + e.getMessage());
+      Log.e(TAG, "Payment failure", e);
+   });
+}
+```
+
+### Fetching Available Banks
+
+```java
+private void fetchBankList() {
+   executorService.execute(() -> {
+      try {
+         // Fetch available banks using payment token
+         List<Bank> banks = cloudipsp.getAvailableBankList(CURRENT_TOKEN, this);
+
+         runOnUiThread(() -> {
+            if (banks != null && !banks.isEmpty()) {
+               // Populate bank list adapter
+               BankAdapter adapter = new BankAdapter(this, banks);
+               bankListView.setAdapter(adapter);
+            } else {
+               showToast("No banks available");
+            }
+         });
+      } catch (Exception e) {
+         runOnUiThread(() -> {
+            Log.e(TAG, "Error getting bank list", e);
+            showToast("Error: " + e.getMessage());
+         });
+      }
+   });
+}
+```
+
+### Payment Initialization
+
+```java
+private void initiatePayment(Bank bank) {
+   showToast("Processing payment with " + bank.getName());
+
+   executorService.execute(() -> {
+      try {
+         // Create order with specific details
+         Order order = new Order(
+                 100,                            // Amount
+                 "GEL",                          // Currency
+                 "order_" + System.currentTimeMillis(), // Unique order ID
+                 "Test Payment",                 // Description
+                 "test@gmail.com"                // Customer email
+         );
+
+         // Initiate bank payment
+         cloudipsp.initiateBankPayment(
+                 this,           // Context
+                 order,          // Order with payment details
+                 bank,           // Selected Bank object
+                 this,           // Payment callback interface
+                 true            // Automatic redirect flag
+         );
+      } catch (Exception e) {
+         runOnUiThread(() -> {
+            Log.e(TAG, "Payment initiation error", e);
+            showToast("Payment error: " + e.getMessage());
+         });
+      }
+   });
+}
+```
+
+### Complete Activity Example
+
+```java
+public class MainActivity extends AppCompatActivity implements Cloudipsp.BankPayCallback {
+   private static final String TAG = "MainActivity";
+   private static final String CURRENT_TOKEN = "your_payment_token";
+   private static final int MERCHANT_ID = 1234567;
+
+   private Cloudipsp cloudipsp;
+   private ListView bankListView;
+   private ExecutorService executorService;
+
+   @Override
+   protected void onCreate(Bundle savedInstanceState) {
+      super.onCreate(savedInstanceState);
+      setContentView(R.layout.activity_main);
+
+      // Initialize executor service
+      executorService = Executors.newFixedThreadPool(2);
+
+      // Initialize Cloudipsp
+      cloudipsp = new Cloudipsp(MERCHANT_ID);
+
+      // Setup bank list view
+      bankListView = findViewById(R.id.bankListView);
+      bankListView.setOnItemClickListener((parent, view, position, id) -> {
+         Bank selectedBank = (Bank) parent.getItemAtPosition(position);
+         initiatePayment(selectedBank);
+      });
+
+      // Fetch available banks
+      fetchBankList();
+   }
+
+   // [Include methods from above: fetchBankList, initiatePayment, 
+   //  onRedirected, onPaidFailure, etc.]
+}
+```
+
+
+### Callback Method Responsibilities
+
+1. `onRedirected()`:
+   - Called when payment is successfully initiated
+   - Provides redirect URL details
+   - Update UI to reflect successful payment
+
+2. `onPaidFailure()`:
+   - Called when payment fails
+   - Provides error details
+   - Update UI to show payment error
+
+
+
 
 ## Troubleshooting
 

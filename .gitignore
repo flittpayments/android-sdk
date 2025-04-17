@@ -1,0 +1,49 @@
+# Gradle
+.gradle/
+build/
+**/build/
+.DS_Store
+# Local configuration file (sdk path, etc)
+local.properties
+
+# IDE settings
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Android Studio captures
+captures/
+
+# Mac OS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Keystore files (sensitive signing data)
+*.jks
+*.keystore
+
+# Generated files
+.generated/
+gen/
+out/
+
+# Lint
+lint/intermediates/
+lint/generated/
+
+# Dependency caches
+.cxx/
+
+# NDK
+.externalNativeBuild/
+
+# Others
+*.orig

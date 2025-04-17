@@ -25,5 +25,11 @@
             android:layout_height="wrap_content"
             android:onClick="onGPayActivityExampleClicked"
             android:text="@string/google_pay_example" />
+
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:onClick="onPayBankExampleClick"
+            android:text="@string/pay_bank_example" />
     </LinearLayout>
 </RelativeLayout>

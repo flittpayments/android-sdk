@@ -96,14 +96,14 @@ abstract public class BaseExampleActivity extends Activity implements
 
     @Override
     public void onClick(View v) {
-        switch (v.getId()) {
-            case R.id.btn_amount:
-                fillTest();
-                break;
-            case R.id.btn_pay_card:
-                processPayCard();
-                break;
-        }
+//        switch (v.getId()) {
+//            case R.id.btn_amount:
+//                fillTest();
+//                break;
+//            case R.id.btn_pay_card:
+//                processPayCard();
+//                break;
+//        }
     }
 
     private void fillTest() {

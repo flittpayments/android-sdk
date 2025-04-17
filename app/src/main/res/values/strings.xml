@@ -4,6 +4,7 @@
     <string name="btn_simple_example">Simple Example</string>
     <string name="btn_flexible_example">Flexible Example</string>
     <string name="google_pay_example">Google Pay Example</string>
+    <string name="pay_bank_example">Pay with bank</string>
 
     <string name="lbl_amount">Amount:</string>
     <string name="lbl_ccy">Currency:</string>
