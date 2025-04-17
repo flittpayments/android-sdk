@@ -36,7 +36,7 @@ public class GPayActivityExample extends Activity implements
         webView = findViewById(R.id.webView);
         googlePayButton = findViewById(R.id.googlePayButton);
         googlePayButton.setMerchantId(1549901);
-//        googlePayButton.setToken("f683cbc54a4041d5adba34d99066fb7d2564bed4");
+//        googlePayButton.setToken("7c02ea6a07368697c3506fba03397041f8ec3704");
         googlePayButton.setRequestCode(RC_GOOGLE_PAY);
         googlePayButton.setOrder(createOrder());
         googlePayButton.initialize(webView);

@@ -1,23 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/mainLayout"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center">
+    android:layout_height="match_parent">
 
-    <com.flitt.android.GooglePayButton.GooglePayButton
-        android:id="@+id/googlePayButton"
-        android:layout_width="300dp"
-        android:layout_height="40dp"
-        app:buttonTheme="light"
-    />
+    <!-- Main content -->
+    <LinearLayout
+        android:id="@+id/mainLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="16dp">
 
+        <com.flitt.android.GooglePayButton.GooglePayButton
+            android:id="@+id/googlePayButton"
+            android:layout_width="300dp"
+            android:layout_height="40dp" />
 
+    </LinearLayout>
+
+    <!-- Overlay WebView, initially hidden -->
     <com.flitt.android.CloudipspWebView
         android:id="@+id/webView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone" />
-</LinearLayout>
+        android:visibility="gone"
+        android:background="#F9FFFFFF" />
+</FrameLayout>
