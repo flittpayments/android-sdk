@@ -15,6 +15,7 @@ import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -22,11 +23,12 @@ import android.webkit.WebViewClient;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.ByteArrayInputStream;
 import java.net.URLDecoder;
 
 /**
-* Created by vberegovoy on 28.11.15.
-*/
+ * Created by vberegovoy on 28.11.15.
+ */
 public class CloudipspWebView extends WebView implements CloudipspView {
     private static final String URL_START_PATTERN = "http://secure-redirect.flitt.com/submit/#";
 
@@ -74,77 +76,133 @@ public class CloudipspWebView extends WebView implements CloudipspView {
         setVisibility(View.VISIBLE);
 
         setWebViewClient(new WebViewClient() {
+            @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+            @Override
+            public WebResourceResponse shouldInterceptRequest(
+                    WebView view,
+                    WebResourceRequest request
+            ) {
+                String url = request.getUrl().toString();
+                if (isCallbackUrl(url, confirmation)) {
+                    // parse JSON/token off-thread
+                    final JSONObject payload = detectCallbackResponse(url, confirmation);
+
+                    // do the UI work on the main thread
+                    view.post(() -> {
+                        blankPage();
+                        confirmation.listener.onConfirmed(payload);
+                        setVisibility(View.GONE);
+                    });
+
+                    // short-circuit the load
+                    return new WebResourceResponse(
+                            "text/html", "UTF-8",
+                            new ByteArrayInputStream("<html></html>".getBytes())
+                    );
+                }
+                return super.shouldInterceptRequest(view, request);
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(
+                    WebView view,
+                    String url
+            ) {
+                if (isCallbackUrl(url, confirmation)) {
+                    final JSONObject payload = detectCallbackResponse(url, confirmation);
+                    view.post(() -> {
+                        blankPage();
+                        confirmation.listener.onConfirmed(payload);
+                        setVisibility(View.GONE);
+                    });
+                    return new WebResourceResponse(
+                            "text/html", "UTF-8",
+                            new ByteArrayInputStream("<html></html>".getBytes())
+                    );
+                }
+                return super.shouldInterceptRequest(view, url);
+            }
+
+            @Override
+            public void onLoadResource(WebView view, String url) {
+                checkUrl(url, confirmation);
+                super.onLoadResource(view, url);
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                if (checkUrl(url)) {
-                    return true;
-                }
+                if (checkUrl(url, confirmation)) return true;
                 return super.shouldOverrideUrlLoading(view, url);
             }
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    if (checkUrl(request.getUrl().toString())) {
-                        return true;
-                    }
-                }
+                String url = request.getUrl().toString();
+                if (checkUrl(url, confirmation)) return true;
                 return super.shouldOverrideUrlLoading(view, request);
             }
 
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                checkUrl(url);
-            }
-
-            private boolean checkUrl(String url) {
-                if (BuildConfig.DEBUG) {
-                    Log.i("Cloudipsp", "WebUrl: " + url);
-                }
-                boolean detectsStartPattern = url.startsWith(URL_START_PATTERN);
-                boolean detectsCallbackUrl = false;
-                boolean detectsApiToken = false;
-                if (!detectsStartPattern) {
-                    detectsCallbackUrl = url.startsWith(confirmation.callbackUrl);
-                    if (!detectsCallbackUrl) {
-                        detectsApiToken = url.startsWith(confirmation.host + "/api/checkout?token=");
-                    }
-                }
-
-                if (detectsStartPattern || detectsCallbackUrl || detectsApiToken) {
-                    blankPage();
-
-                    JSONObject response = null;
-                    if (detectsStartPattern) {
-                        final String jsonOfConfirmation = url.split(URL_START_PATTERN)[1];
-                        try {
-                            response = new JSONObject(jsonOfConfirmation);
-                        } catch (JSONException jsonException) {
-                            try {
-                                response = new JSONObject(URLDecoder.decode(jsonOfConfirmation, "UTF-8"));
-                            } catch (Exception e) {
-                                response = null;
-                            }
-                        }
-                    }
-                    confirmation.listener.onConfirmed(response);
-
-                    setVisibility(View.GONE);
-                    return true;
-                } else {
-                    return false;
-                }
+                checkUrl(url, confirmation);
             }
 
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                if (failingUrl != null && failingUrl.startsWith(confirmation.callbackUrl)) return;
                 handleError(errorCode, description);
             }
 
-            @Override
             @TargetApi(Build.VERSION_CODES.M)
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                String url = request.getUrl().toString();
+                if (url.startsWith(confirmation.callbackUrl)) return;
                 handleError(error.getErrorCode(), error.getDescription().toString());
+            }
+
+            @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                super.onReceivedSslError(view, handler, error);
+                confirmation.listener.onNetworkSecurityError(error.toString());
+                handleError();
+            }
+
+            private boolean checkUrl(String url, PayConfirmation confirmation) {
+                if (BuildConfig.DEBUG) {
+                    Log.i("Cloudipsp", "WebUrl: " + url);
+                }
+                boolean detectsStartPattern = url.startsWith(URL_START_PATTERN);
+                boolean detectsApiToken = url.startsWith(confirmation.host + "/api/checkout?token=");
+
+                boolean detectsCallbackUrl = false;
+                try {
+                    Uri incoming = Uri.parse(url);
+                    Uri cb = Uri.parse(confirmation.callbackUrl);
+                    detectsCallbackUrl = incoming.getScheme().equalsIgnoreCase(cb.getScheme())
+                            && incoming.getHost().equalsIgnoreCase(cb.getHost());
+                } catch (Exception ignored) {
+                }
+
+                if (detectsStartPattern || detectsCallbackUrl || detectsApiToken) {
+                    blankPage();
+                    JSONObject response = null;
+                    if (detectsStartPattern) {
+                        String jsonPart = url.substring(URL_START_PATTERN.length());
+                        try {
+                            response = new JSONObject(jsonPart);
+                        } catch (JSONException jsEx) {
+                            try {
+                                response = new JSONObject(URLDecoder.decode(jsonPart, "UTF-8"));
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    }
+                    confirmation.listener.onConfirmed(response);
+                    setVisibility(View.GONE);
+                    return true;
+                }
+                return false;
             }
 
             private void handleError(int errorCode, String description) {
@@ -162,16 +220,38 @@ public class CloudipspWebView extends WebView implements CloudipspView {
                 }
             }
 
-            @Override
-            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                super.onReceivedSslError(view, handler, error);
-                confirmation.listener.onNetworkSecurityError(error.toString());
-                handleError();
-            }
-
             private void handleError() {
                 blankPage();
                 skipConfirm();
+            }
+
+
+            private JSONObject detectCallbackResponse(String url, PayConfirmation confirmation) {
+                if (url.startsWith(URL_START_PATTERN)) {
+                    String jsonPart = url.substring(URL_START_PATTERN.length());
+                    try {
+                        return new JSONObject(jsonPart);
+                    } catch (JSONException jsEx) {
+                        try {
+                            return new JSONObject(URLDecoder.decode(jsonPart, "UTF-8"));
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+                return null;
+            }
+
+            private boolean isCallbackUrl(String url, PayConfirmation confirmation) {
+                if (url.startsWith(URL_START_PATTERN)) return true;
+                if (url.startsWith(confirmation.host + "/api/checkout?token=")) return true;
+                try {
+                    Uri incoming = Uri.parse(url);
+                    Uri cb = Uri.parse(confirmation.callbackUrl);
+                    return incoming.getScheme().equalsIgnoreCase(cb.getScheme())
+                            && incoming.getHost().equalsIgnoreCase(cb.getHost());
+                } catch (Exception ignored) {
+                    return false;
+                }
             }
         });
 

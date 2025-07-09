@@ -32,7 +32,7 @@ Add the following to your app's `build.gradle` file:
 
 ```gradle
 dependencies {
-    implementation 'com.flittpayments:android-sdk:1.0.0' // Replace with the latest version
+    implementation 'com.flittpayments:android-sdk:1.2.0' // Replace with the latest version
 }
 ```
 

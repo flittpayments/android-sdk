@@ -57,7 +57,7 @@ abstract public class BaseExampleActivity extends Activity implements
         findViewById(R.id.btn_pay_card).setOnClickListener(this);
 
         webView = findViewById(R.id.web_view);
-        cloudipsp = new Cloudipsp(1396424, webView);
+        cloudipsp = new Cloudipsp(1549901, webView);
 
         spinnerCcy.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, Currency.values()));
 
@@ -96,14 +96,13 @@ abstract public class BaseExampleActivity extends Activity implements
 
     @Override
     public void onClick(View v) {
-//        switch (v.getId()) {
-//            case R.id.btn_amount:
-//                fillTest();
-//                break;
-//            case R.id.btn_pay_card:
-//                processPayCard();
-//                break;
-//        }
+        int id = v.getId();
+
+        if (id == R.id.btn_amount) {
+            fillTest();
+        } else if (id == R.id.btn_pay_card) {
+            processPayCard();
+        }
     }
 
     private void fillTest() {

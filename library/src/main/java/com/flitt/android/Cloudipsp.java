@@ -57,7 +57,7 @@ import javax.net.ssl.SSLSocketFactory;
  */
 public final class Cloudipsp {
     private static final String HOST = BuildConfig.API_HOST;
-    private static final String URL_CALLBACK = "http://callback";
+    private static final String URL_CALLBACK = "https://callback";
     private static final SimpleDateFormat DATE_AND_FORMAT = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US);
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd.MM.yyyy", Locale.US);
     private static final SSLSocketFactory tlsSocketFactory = Tls12SocketFactory.getInstance();
