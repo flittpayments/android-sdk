@@ -99,7 +99,7 @@ public class GooglePayButton extends GooglePayButtonLayout {
         }
 
         this.webView = webView;
-        this.cloudipsp = new Cloudipsp(this.merchantId, this.webView);
+        this.cloudipsp = new Cloudipsp(this.merchantId, this.webView, this.getContext());
 
         validateConfiguration();
         initializeGooglePay();

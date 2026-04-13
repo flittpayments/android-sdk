@@ -23,6 +23,7 @@ public final class CardInputLayout extends FrameLayout implements CardDisplay {
     private CardExpMmEdit editMm;
     private CardExpYyEdit editYy;
     CardCvvEdit editCvv;
+    private View cvvContainer;
 
     private Card displayedCard;
 
@@ -45,6 +46,7 @@ public final class CardInputLayout extends FrameLayout implements CardDisplay {
         editMm = findOne(CardExpMmEdit.class);
         editYy = findOne(CardExpYyEdit.class);
         editCvv = findOne(CardCvvEdit.class);
+        cvvContainer = findViewById(R.id.cvv_container);
         editCardNumber.addTextChangedListenerInternal(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -61,6 +63,18 @@ public final class CardInputLayout extends FrameLayout implements CardDisplay {
         });
     }
 
+    public void addCardNumberWatcher(TextWatcher watcher) {
+        editCardNumber.addTextChangedListenerInternal(watcher);
+    }
+
+
+    public void setCvvVisible(boolean visible) {
+        if (cvvContainer != null) {
+            cvvContainer.setVisibility(visible ? View.VISIBLE : View.GONE);
+        } else {
+            editCvv.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
+    }
     @Override
     protected void dispatchSaveInstanceState(SparseArray<Parcelable> container) {
         setRealIds();
@@ -131,13 +145,14 @@ public final class CardInputLayout extends FrameLayout implements CardDisplay {
         handler.onCardInputErrorClear(this, editYy);
         handler.onCardInputErrorClear(this, editCvv);
 
-        final Card card = new Card
-                (
-                        editCardNumber.getTextInternal().toString(),
-                        editMm.getTextInternal().toString(),
-                        editYy.getTextInternal().toString(),
-                        editCvv.getTextInternal().toString()
-                );
+        final boolean cvvVisible = isCvvSectionVisible();
+        final Card card = new Card(
+                editCardNumber.getTextInternal().toString(),
+                editMm.getTextInternal().toString(),
+                editYy.getTextInternal().toString(),
+                editCvv.getTextInternal().toString(),
+                cvvVisible ? Card.SOURCE_FORM : Card.SOURCE_NFC
+        );
 
         if (!card.isValidCardNumber()) {
             handler.onCardInputErrorCatched(this, editCardNumber, getContext().getString(R.string.e_invalid_card_number));
@@ -147,12 +162,19 @@ public final class CardInputLayout extends FrameLayout implements CardDisplay {
             handler.onCardInputErrorCatched(this, editYy, getContext().getString(R.string.e_invalid_yy));
         } else if (!card.isValidExpireDate()) {
             handler.onCardInputErrorCatched(this, editYy, getContext().getString(R.string.e_invalid_date));
-        } else if (!card.isValidCvv()) {
+        } else if (isCvvSectionVisible() && !card.isValidCvv()) {
             handler.onCardInputErrorCatched(this, editCvv, getContext().getString(R.string.e_invalid_cvv));
         } else {
             return card;
         }
         return null;
+    }
+
+    private boolean isCvvSectionVisible() {
+        if (cvvContainer != null) {
+            return cvvContainer.getVisibility() == View.VISIBLE;
+        }
+        return editCvv.getVisibility() == View.VISIBLE;
     }
 
     private void setFakeIds() {

@@ -31,9 +31,8 @@ public class DeviceInfoProvider {
      * Constructor requires an Android context
      */
     public DeviceInfoProvider(Context context) {
-        this.context = context.getApplicationContext(); // Use application context to prevent leaks
+        this.context = context.getApplicationContext();
     }
-
     /**
      * Creates a complete device fingerprint in the required format
      * @return JSONObject containing the device fingerprint data

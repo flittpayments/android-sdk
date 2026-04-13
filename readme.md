@@ -10,8 +10,9 @@
 7. [Handling Payment Results](#handling-payment-results)
 8. [Error Handling](#error-handling)
 9. [Additional Configuration Options](#additional-configuration-options)
-10. [Sample Project Structure](#sample-project-structure)
-11. [Bank Payment Methods](#bank-payment-methods)
+10. [Card Input & Fee Calculation](#card-input--fee-calculation)
+11. [Sample Project Structure](#sample-project-structure)
+12. [Bank Payment Methods](#bank-payment-methods)
 
 ## Introduction
 
@@ -319,6 +320,211 @@ googlePayButton = new GooglePayButton.Builder(this)
         .build();
 ```
 
+## Card Input & Fee Calculation
+
+### Layout
+
+Add `CardInputView` to your layout — it handles all card fields (number, expiry, CVV) internally:
+
+```xml
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <EditText
+                android:id="@+id/edit_amount"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:maxLength="7" />
+
+            <Spinner
+                android:id="@+id/spinner_ccy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <EditText
+                android:id="@+id/edit_email"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textEmailAddress" />
+
+            <com.flitt.android.CardInputView
+                android:id="@+id/card_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <Button
+                android:id="@+id/btn_pay_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/btn_pay_card" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <com.flitt.android.CloudipspWebView
+        android:id="@+id/web_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+</RelativeLayout>
+```
+
+### Fee Calculation
+
+Call `setFeeParams()` to enable automatic fee calculation. CVV visibility is handled automatically by `CardInputView` based on the fee response — you do not need to call `setCvvVisible()` manually.
+
+`setFeeParams` has two signatures — token is optional:
+
+```java
+// Without token
+cardInput.setFeeParams(merchantId, amount, currency, callback);
+
+// With token (optional)
+cardInput.setFeeParams(merchantId, amount, currency, token, callback);
+```
+
+Example usage in your Activity:
+
+```java
+cardInput.setFeeParams(
+    4055775,
+    amount,
+    currency,
+    new CardInputView.FeeCallback() {
+        @Override
+        public void onFeeResult(FeeCalculationResponse response) {
+            // CVV visibility is handled automatically inside CardInputView
+            // Add any additional UI updates here if needed
+        }
+    }
+);
+```
+
+To also handle fee errors, use `FeeCallbackWithError`:
+
+```java
+cardInput.setFeeParams(
+    4055775,
+    amount,
+    currency,
+    new CardInputView.FeeCallbackWithError() {
+        @Override
+        public void onFeeResult(FeeCalculationResponse response) {
+            // CVV visibility is handled automatically inside CardInputView
+        }
+
+        @Override
+        public void onFeeError(Exception e) {
+            // Handle fee calculation error
+        }
+    }
+);
+```
+
+If you don't need to react to the fee response at all, you can pass `null` as the callback:
+
+```java
+cardInput.setFeeParams(4055775, amount, currency, null);
+```
+
+### Manual Fee Calculation
+
+If you are not using `CardInputView` and want to calculate the fee yourself, you can call `calculateFee` directly on a `Cloudipsp` instance. This must be done on a background thread as it makes a network call.
+
+```java
+new Thread(() -> {
+    try {
+        Cloudipsp cloudipsp = new Cloudipsp(merchantId, this);
+        FeeCalculationResponse response = cloudipsp.calculateFee(
+                amount,      // int: payment amount
+                currency,    // String: e.g. "USD"
+                cardBin,     // String: first 6+ digits of card number
+                token,       // String: optional, pass null if not available
+                merchantId   // Integer: your merchant ID
+        );
+
+        runOnUiThread(() -> {
+            // Use response fields
+        });
+    } catch (Exception e) {
+        // Handle error
+    }
+}).start();
+```
+
+#### FeeCalculationResponse Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `discountPercent` | `Double` | Discount percentage applied, or `null` |
+| `discountAmount` | `Double` | Discount amount applied, or `null` |
+| `feeAmount` | `Double` | Fee amount charged, or `null` |
+| `totalAmount` | `Double` | Total amount after fee/discount, or `null` |
+| `promoStatus` | `String` | Promo status string, or `null` |
+| `message` | `String` | Message from the server, or `null` |
+| `cvv2RequirementRaw` | `String` | Raw CVV2 requirement string from server |
+| `cvv2Requirement` | `Cvv2Requirement` | Parsed enum: `REQUIRED`, `OPTIONAL`, or `ABSENT` |
+
+#### Cvv2Requirement Enum
+
+| Value | Description |
+|-------|-------------|
+| `REQUIRED` | CVV is mandatory for this card |
+| `OPTIONAL` | CVV is optional for this card |
+| `ABSENT` | CVV is not needed — hide the CVV field |
+
+Example handling the response:
+
+```java
+FeeCalculationResponse response = cloudipsp.calculateFee(amount, currency, cardBin, null, merchantId);
+
+// Show or hide CVV based on requirement
+if (response.cvv2Requirement == FeeCalculationResponse.Cvv2Requirement.ABSENT) {
+    cvvEditText.setVisibility(View.GONE);
+} else {
+    cvvEditText.setVisibility(View.VISIBLE);
+}
+
+// Display fee info
+String info = "Fee: " + response.feeAmount + "\n"
+            + "Total: " + response.totalAmount + "\n"
+            + "Discount: " + response.discountAmount;
+```
+
+> **Note:** If you are using `CardInputView`, you do not need to call `calculateFee` manually — just call `setFeeParams()` and CVV visibility is handled automatically.
+
+### Card Confirmation
+
+```java
+Card card = cardInput.confirm(new CardInputView.ConfirmationErrorHandler() {
+    @Override
+    public void onCardInputErrorClear(CardInputView view, EditText editText) {}
+
+    @Override
+    public void onCardInputErrorCatched(CardInputView view, EditText editText, String error) {
+        editText.setError(error);
+        editText.requestFocus();
+    }
+});
+
+if (card != null) {
+    // Proceed with payment
+}
+```
+
 ## Sample Project Structure
 
 A typical implementation would have the following structure:
@@ -349,7 +555,7 @@ public class MainActivity extends AppCompatActivity implements Cloudipsp.BankPay
 
 ```java
 // Initialize Cloudipsp with Merchant ID
-Cloudipsp cloudipsp = new Cloudipsp(MERCHANT_ID);
+Cloudipsp cloudipsp = new Cloudipsp(MERCHANT_ID , this);
 ```
 
 ### Interface Methods
@@ -463,7 +669,7 @@ public class MainActivity extends AppCompatActivity implements Cloudipsp.BankPay
       executorService = Executors.newFixedThreadPool(2);
 
       // Initialize Cloudipsp
-      cloudipsp = new Cloudipsp(MERCHANT_ID);
+      cloudipsp = new Cloudipsp(MERCHANT_ID, this);
 
       // Setup bank list view
       bankListView = findViewById(R.id.bankListView);
@@ -481,38 +687,34 @@ public class MainActivity extends AppCompatActivity implements Cloudipsp.BankPay
 }
 ```
 
-
 ### Callback Method Responsibilities
 
 1. `onRedirected()`:
-   - Called when payment is successfully initiated
-   - Provides redirect URL details
-   - Update UI to reflect successful payment
+    - Called when payment is successfully initiated
+    - Provides redirect URL details
+    - Update UI to reflect successful payment
 
 2. `onPaidFailure()`:
-   - Called when payment fails
-   - Provides error details
-   - Update UI to show payment error
-
-
-
+    - Called when payment fails
+    - Provides error details
+    - Update UI to show payment error
 
 ## Troubleshooting
 
 ### Common Issues
 
 1. **Google Pay button doesn't appear or is disabled**
-   - Ensure Google Pay is available on the device
-   - Verify your merchant ID is correct
-   - Check that the token is valid
+    - Ensure Google Pay is available on the device
+    - Verify your merchant ID is correct
+    - Check that the token is valid
 
 2. **Payment failure with Network Error**
-   - Verify internet connection
-   - Check that all required permissions are in the manifest
+    - Verify internet connection
+    - Check that all required permissions are in the manifest
 
 3. **Payment is processed but callback is not triggered**
-   - Ensure your activity implements the correct interfaces
-   - Verify that you're handling activity results correctly
+    - Ensure your activity implements the correct interfaces
+    - Verify that you're handling activity results correctly
 
 ## Conclusion
 

@@ -56,6 +56,8 @@ import javax.net.ssl.SSLSocketFactory;
  * Created by vberegovoy on 09.11.15.
  */
 public final class Cloudipsp {
+
+    private final Context context;
     private static final String HOST = BuildConfig.API_HOST;
     private static final String URL_CALLBACK = "http://callback";
     private static final SimpleDateFormat DATE_AND_FORMAT = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US);
@@ -72,12 +74,15 @@ public final class Cloudipsp {
     public final int merchantId;
     private CloudipspView cloudipspView;
 
-    public Cloudipsp(int merchantId) {
+    public Cloudipsp(int merchantId, Context context) {
         this.merchantId = merchantId;
+        this.context = context.getApplicationContext();
     }
-    public Cloudipsp(int merchantId, CloudipspView cloudipspView) {
+
+    public Cloudipsp(int merchantId, CloudipspView cloudipspView,Context context) {
         this.merchantId = merchantId;
         this.cloudipspView = cloudipspView;
+        this.context = context.getApplicationContext();
     }
 
     public interface Callback {
@@ -236,7 +241,7 @@ public final class Cloudipsp {
         }
     }
 
-    public void initiateBankPayment(Context context, String token, Bank bank, BankPayCallback bankPayCallback,boolean autoRedirect) {
+    public void initiateBankPayment(Context context, String token, Bank bank, BankPayCallback bankPayCallback, boolean autoRedirect) {
         try {
             DeviceInfoProvider deviceInfo = new DeviceInfoProvider(context);
             String encodedDeviceData = deviceInfo.getEncodedDeviceFingerprint();
@@ -258,11 +263,11 @@ public final class Cloudipsp {
             if ("success".equals(responseStatus) && "redirect".equals(action) && response.has("url")) {
                 String redirectUrl = response.getString("url");
                 String target = response.optString("target", "_top");
-                handleRedirect(context, redirectUrl, target, bankPayCallback,response,autoRedirect);
+                handleRedirect(context, redirectUrl, target, bankPayCallback, response, autoRedirect);
             } else {
                 if (bankPayCallback != null) {
                     bankPayCallback.onPaidFailure(new Exception("Payment initiation failed: " +
-                           "payment status: " + responseStatus + ", action: " + action));
+                            "payment status: " + responseStatus + ", action: " + action));
                 }
             }
         } catch (java.lang.Exception e) {
@@ -270,10 +275,69 @@ public final class Cloudipsp {
         }
     }
 
-    public void initiateBankPayment(Context context, final Order order, Bank bank, BankPayCallback bankPayCallback,boolean autoRedirect) throws java.lang.Exception {
+    public FeeCalculationResponse calculateFee(
+            int amount,
+            String currency,
+            String cardBin,
+            String token,
+            Integer merchantId
+    ) throws java.lang.Exception {
+
+        DeviceInfoProvider deviceInfo = new DeviceInfoProvider(this.context);
+        String encodedDeviceData = deviceInfo.getEncodedDeviceFingerprint();
+
+        final TreeMap<String, Object> request = new TreeMap<>();
+        request.put("amount", amount);
+        request.put("currency", currency);
+        request.put("merchant_id", merchantId);
+        request.put("card_bin", cardBin);
+        request.put("kkh", encodedDeviceData);
+        if (!TextUtils.isEmpty(token)) {
+            request.put("token", token);
+        }
+
+        final JSONObject response = callJson("/api/fee/calc_v2", request);
+
+        final Double discountPercent = response.isNull("discount_percent") ? null : response.getDouble("discount_percent");
+        final Double discountAmount = response.isNull("discount_amount") ? null : response.getDouble("discount_amount");
+        final Double feeAmount = response.isNull("fee_amount") ? null : response.getDouble("fee_amount");
+        final Double totalAmount = response.isNull("total_amount") ? null : response.getDouble("total_amount");
+        final String promoStatus = response.isNull("promo_status") ? null : response.getString("promo_status");
+        final String message = response.isNull("message") ? null : response.getString("message");
+
+        FeeCalculationResponse.Cvv2Requirement cvv2Requirement = null;
+        final String cvv2RequirementRaw = response.optString("cvv2_requirement", null);
+        if (!TextUtils.isEmpty(cvv2RequirementRaw)) {
+            switch (cvv2RequirementRaw.trim().toLowerCase(Locale.US)) {
+                case "required":
+                case "mandatory":
+                    cvv2Requirement = FeeCalculationResponse.Cvv2Requirement.REQUIRED;
+                    break;
+                case "optional":
+                    cvv2Requirement = FeeCalculationResponse.Cvv2Requirement.OPTIONAL;
+                    break;
+                case "absent":
+                    cvv2Requirement = FeeCalculationResponse.Cvv2Requirement.ABSENT;
+                    break;
+            }
+        }
+
+        return new FeeCalculationResponse(
+                discountPercent,
+                discountAmount,
+                feeAmount,
+                totalAmount,
+                promoStatus,
+                message,
+                cvv2RequirementRaw,
+                cvv2Requirement
+        );
+    }
+
+    public void initiateBankPayment(Context context, final Order order, Bank bank, BankPayCallback bankPayCallback, boolean autoRedirect) throws java.lang.Exception {
         try {
             final String token = getToken(order, null);
-            this.initiateBankPayment(context, token,bank,bankPayCallback,autoRedirect);
+            this.initiateBankPayment(context, token, bank, bankPayCallback, autoRedirect);
         } catch (Exception e) {
             if (bankPayCallback != null) {
                 bankPayCallback.onPaidFailure(e);
@@ -283,7 +347,7 @@ public final class Cloudipsp {
     }
 
 
-    private void handleRedirect(Context context, String url, String target, BankPayCallback payCallback,JSONObject response,boolean autoRedirect) throws JSONException {
+    private void handleRedirect(Context context, String url, String target, BankPayCallback payCallback, JSONObject response, boolean autoRedirect) throws JSONException {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
         if ("_blank".equals(target)) {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -296,7 +360,7 @@ public final class Cloudipsp {
                 response.getString("target"),
                 response.getString("response_status")
         );
-        if(!autoRedirect){
+        if (!autoRedirect) {
             payCallback.onRedirected(bankRedirectDetails);
             return;
         }
@@ -481,6 +545,10 @@ public final class Cloudipsp {
 
     private GooglePayMerchantConfig googlePayMerchantConfig(GooglePayMetaInfo metaInfo) throws java.lang.Exception {
         final TreeMap<String, Object> mobilePayRequest = new TreeMap<>();
+        DeviceInfoProvider deviceInfo = new DeviceInfoProvider(this.context);
+        String encodedDeviceData = deviceInfo.getEncodedDeviceFingerprint();
+        mobilePayRequest.put("kkh", encodedDeviceData);
+
         mobilePayRequest.put("merchant_id", merchantId);
         if (metaInfo.token == null) {
             mobilePayRequest.put("amount", metaInfo.amount);
@@ -621,6 +689,9 @@ public final class Cloudipsp {
     public String getToken(Order order, Card card) throws java.lang.Exception {
         final TreeMap<String, Object> request = new TreeMap<String, Object>();
 
+        DeviceInfoProvider deviceInfo = new DeviceInfoProvider(this.context);
+        String encodedDeviceData = deviceInfo.getEncodedDeviceFingerprint();
+        request.put("kkh", encodedDeviceData);
         request.put("order_id", order.id);
         request.put("merchant_id", String.valueOf(merchantId));
         request.put("order_desc", order.description);

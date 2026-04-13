@@ -64,17 +64,24 @@
                 android:nextFocusUp="@id/edit_mm" />
         </LinearLayout>
 
-        <TextView
+        <LinearLayout
+            android:id="@+id/cvv_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/lbl_cvv" />
+            android:orientation="vertical">
 
-        <com.flitt.android.CardCvvEdit
-            android:id="@+id/edit_cvv"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
-            android:nextFocusUp="@id/edit_yy" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/lbl_cvv" />
+
+            <com.flitt.android.CardCvvEdit
+                android:id="@+id/edit_cvv"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="7dp"
+                android:nextFocusUp="@id/edit_yy" />
+        </LinearLayout>
     </LinearLayout>
 </com.flitt.android.CardInputLayout>

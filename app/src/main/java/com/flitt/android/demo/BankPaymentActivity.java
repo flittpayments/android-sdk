@@ -36,7 +36,7 @@ public class BankPaymentActivity extends Activity implements Cloudipsp.BankPayCa
         // Initialize thread pool with a fixed number of threads
         executorService = Executors.newFixedThreadPool(2);
 
-        cloudipsp = new Cloudipsp(MERCHANT_ID);
+        cloudipsp = new Cloudipsp(MERCHANT_ID, this);
 
         // Setup bank list view
         bankListView = findViewById(R.id.bankListView);
